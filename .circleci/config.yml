@@ -5,22 +5,34 @@ version: 2.1
 # Define a job to be invoked later in a workflow.
 # See: https://circleci.com/docs/configuration-reference/#jobs
 jobs:
-  say-hello:
+  build-job:
     # Specify the execution environment. You can specify an image from Docker Hub or use one of our convenience images from CircleCI's Developer Hub.
     # See: https://circleci.com/docs/configuration-reference/#executor-job
     docker:
       - image: cimg/base:stable
+        auth:
+          username: $DOCKERHUB_USER  # can specify string literal values
+          password: $DOCKERHUB_ACCESS_TOKEN  # or project environment variable reference
     # Add steps to the job
     # See: https://circleci.com/docs/configuration-reference/#steps
     steps:
+      - setup_remote_docker:
+          version: 20.10.14
+          docker_layer_caching: true
       - checkout
-      - run:
-          name: "Say hello"
-          command: "echo Hello, World!"
+      - run: |
+          TAG=0.1.$CIRCLE_BUILD_NUM
+          IMAGE_LONG_NAME=$DOCKERHUB_NAMESPACE/$DOCKERHUB_REPO_NAME:$TAG
+          docker build -t $IMAGE_LONG_NAME .
+          echo $DOCKERHUB_ACCESS_TOKEN | docker login -u $DOCKERHUB_USER --password-stdin
+          docker push $IMAGE_LONG_NAME
 
 # Orchestrate jobs using workflows
 # See: https://circleci.com/docs/configuration-reference/#workflows
 workflows:
   say-hello-workflow:
     jobs:
-      - say-hello
+      - build-job:
+          context:
+            - build-env-vars
+            - docker-hub-creds
